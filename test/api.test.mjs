@@ -64,33 +64,34 @@ test("submit-win: 400 with field errors and no DB call", async () => {
   assert.equal(calls.length, 0);
 });
 
-test("submit-win: public win calls RPC and rings Discord without mentions", async () => {
+test("submit-win: saves via RPC and rings Discord without mentions", async () => {
   stubFetch([
-    ["/rest/v1/rpc/submit_win", () => json({ id: "w1", status: "public", protected: true, state: "TX", matched_lead_type: "Final Expense" })],
+    ["/rest/v1/rpc/submit_win", () => json({ id: "w1", status: "public" })],
     ["discord.test", () => new Response(null, { status: 204 })],
   ]);
   const res = mockRes();
   await submitWin({ method: "POST", body: JSON.stringify(body) }, res);
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body, { status: "public", protected: true });
+  assert.deepEqual(res.body, { status: "public" });
   assert.equal(calls[0].init.headers.Authorization, "Bearer service-key");
   assert.equal(JSON.parse(calls[0].init.body).p.client_phone, "5551234567");
   const discord = JSON.parse(calls[1].init.body);
-  assert.equal(discord.content, "🔔 Mike R. (TX) just closed a Final Expense deal — $1,200 AP!");
+  assert.equal(discord.content, "🔔 Mike R. just closed a Final Expense deal — $1,200 AP!");
   assert.deepEqual(discord.allowed_mentions, { parse: [] });
 });
 
-test("submit-win: pending win does not ring Discord", async () => {
-  stubFetch([["/rest/v1/rpc/submit_win", () => json({ id: "w2", status: "pending", protected: false, state: null, matched_lead_type: null })]]);
+test("submit-win: no Discord URL -> saves without ringing", async () => {
+  delete process.env.DISCORD_WEBHOOK_URL;
+  stubFetch([["/rest/v1/rpc/submit_win", () => json({ id: "w2", status: "public" })]]);
   const res = mockRes();
   await submitWin({ method: "POST", body }, res);
-  assert.deepEqual(res.body, { status: "pending", protected: false });
+  assert.equal(res.statusCode, 200);
   assert.equal(calls.length, 1);
 });
 
 test("submit-win: Discord failure still returns 200", async () => {
   stubFetch([
-    ["/rest/v1/rpc/submit_win", () => json({ id: "w3", status: "public", protected: false, state: null, matched_lead_type: null })],
+    ["/rest/v1/rpc/submit_win", () => json({ id: "w3", status: "public" })],
     ["discord.test", () => { throw new Error("down"); }],
   ]);
   const res = mockRes();

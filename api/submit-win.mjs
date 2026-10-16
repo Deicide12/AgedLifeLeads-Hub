@@ -29,8 +29,7 @@ export default async function handler(req, res) {
     const content = bellMessage({
       name: win.submitter_name,
       showName: win.show_name,
-      state: out.state,
-      leadType: out.matched_lead_type || win.lead_type,
+      leadType: win.lead_type,
       apCents: win.annual_premium_cents,
     });
     await fetch(DISCORD_WEBHOOK_URL, {
@@ -41,5 +40,5 @@ export default async function handler(req, res) {
     }).catch((e) => console.error("discord", e));
   }
 
-  return res.status(200).json({ status: out.status, protected: out.protected });
+  return res.status(200).json({ status: out.status });
 }

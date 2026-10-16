@@ -1,8 +1,10 @@
 # Win Submissions ("Ring the Bell") — Design Spec
 
-**Date:** 2026-10-17
+**Date:** 2026-10-17 (revised same day: fully standalone)
 **Owner:** Aged Life Leads (support@agedlifeleads.com)
 **Repo:** `Deicide12/AgedLifeLeads-Hub` (first feature of the Hub)
+
+> **Revision:** The Hub must not affect any existing site. It runs on its **own Vercel project and its own Supabase project**, with no reads or writes to the CRM (`fhxajizqumguubgitrlf`). Consequences: no automatic agent/lead matching and no automatic resale retirement. Wins go public instantly; the owner pulls sold clients from resale in the CRM manually, tracked with a `resale_retired` flag. A one-way sync into the CRM is a possible later, separate task.
 
 ---
 
@@ -10,166 +12,117 @@
 
 Agents who buy our leads log closed deals on one public page. Each win:
 
-1. **Protects the agent's lead** — the client is retired from resale (the agent's selfish reason to submit).
-2. **Ranks them** on a monthly AP leaderboard + live wins feed (hype).
-3. **Rings the bell** in a read-only Discord `#wins` channel (hype, social proof).
-4. **Feeds lead-quality data** — wins and AP per lead type / order, for ROI proof.
+1. **Rings the bell** in a read-only Discord `#wins` channel and on the page (confetti).
+2. **Ranks them** on a monthly AP leaderboard + live wins feed.
+3. **Flags the client for resale removal** — the owner retires them in the CRM by hand.
+4. **Collects lead-quality data** — wins and AP per lead type.
 
-Inspired by a competitor's "Submit a Sale" page; we copy the resale-protection hook, private client fields, Monthly/Annual toggle, and bell.
+Inspired by a competitor's "Submit a Sale" page (resale-protection hook, private client fields, Monthly/Annual toggle, bell).
 
 ## Users
 
-- **Agent** (lead buyer). No login. Already has a CRM profile (`public.profiles`) keyed by email.
-- **Owner/admin.** Reviews data in Supabase; approves unmatched wins.
+- **Agent** (lead buyer). No login; identifies by email (not verified).
+- **Owner.** Works in the Hub's Supabase table editor: hides fake wins, ticks `resale_retired`.
 
 ## Page layout (single page, mobile-first)
 
 ```
-Submit a Sale
-"Log your sale — it hits the leaderboard, rings the bell, and we pull
+Submit a Sale 🔔
+"Log your sale. It hits the leaderboard, rings the bell, and we'll pull
  your client from resale."
-
 [ form ]
 [ Leaderboard — this month, by AP ]
 [ Recent wins feed ]
 ```
 
-Visual style matches agedlifeleads.com (navy/red tokens), not the competitor's green.
+Visual style matches agedlifeleads.com (navy/red tokens).
 
 ## Form fields
 
 | Field | Required | Notes |
 |---|---|---|
-| Your email | yes | Matched to `profiles.email` (case-insensitive) |
-| Your name | yes | Used for display name ("Mike R.") |
-| Your phone | no | Stored on the win only |
-| Client name | yes | *Private — never shown publicly* |
-| Client phone | one of phone/email | *Private.* Used to find the exact lead |
-| Client email | one of phone/email | *Private.* Used to find the exact lead |
-| Lead type | yes | Dropdown, see list below |
-| Carrier | no | Free text, e.g. "Mutual of Omaha" |
-| Premium | yes | Toggle **Monthly / Annual**; monthly × 12 → stored as annual (AP). $1–$100,000 AP |
-| Testimonial | no | ≤ 500 chars, about the leads |
-| Show my name publicly | default on | Off → "An agent" on leaderboard/feed/Discord |
+| Your email | yes | Groups the agent's wins on the leaderboard |
+| Your name | yes | Display name ("Mike R.") |
+| Your phone | no | |
+| Client name | yes | *Private* |
+| Client phone | one of phone/email | *Private.* Used by owner to find the lead in the CRM |
+| Client email | one of phone/email | *Private* |
+| Lead type | yes | Dropdown, list below |
+| Carrier | no | |
+| Premium | yes | **Monthly / Annual** toggle; monthly × 12 → AP. $1–$100,000 AP |
+| Testimonial | no | ≤ 500 chars |
+| Show my name publicly | default on | Off → "An agent" |
 | Hidden honeypot | — | Must be empty |
 
-**Lead type dropdown** (matches `orders.lead_type` values in use today):
-Final Expense · Semi-Fresh Final Expense · IUL · Mortgage Protection · Veteran Protection · OTP-Verified Final Expense (FEX) · OTP-Verified Indexed Universal Life (IUL) · OTP-Verified Mortgage Protection (MTG) · OTP-Verified Veteran Protection (VET) · OTP-Verified Semi-Fresh Veteran Protection
+**Lead types:** Final Expense · Semi-Fresh Final Expense · IUL · Mortgage Protection · Veteran Protection · OTP-Verified Final Expense (FEX) · OTP-Verified Indexed Universal Life (IUL) · OTP-Verified Mortgage Protection (MTG) · OTP-Verified Veteran Protection (VET) · OTP-Verified Semi-Fresh Veteran Protection
 
-Submit button: **Ring the Bell 🔔** → confetti + "Logged! Your client is protected from resale." (or "Logged — we'll review it shortly." when unmatched).
+Submit: **Ring the Bell 🔔** → confetti + "🔔 Bell rung! Your win is on the board — we'll pull your client from resale."
 
 ## Architecture
 
-Static page + two Vercel serverless functions in the Hub repo, writing to the existing Supabase project `fhxajizqumguubgitrlf` with the service-role key (server-side only).
+Static page + two Vercel serverless functions in a **new Vercel project**, talking to a **new Supabase project** over PostgREST with that project's service-role key (server-side only). Zero npm dependencies.
 
 ```
-index.html (form + leaderboard + feed, vanilla JS)
-api/submit-win.mjs   POST — validate, match, retire lead, insert win, ping Discord
-api/wins.mjs         GET  — leaderboard + feed (public-safe fields only), cached 30s
-lib/win.mjs          pure helpers: validate(), normalizePhone(), displayName(), toAnnual()
-test/win.test.mjs    node --test checks for lib/win.mjs
+index.html           form + leaderboard + feed (vanilla JS)
+api/submit-win.mjs   POST — validate, save, ring Discord
+api/wins.mjs         GET  — leaderboard + feed (public-safe fields), cached 30s
+lib/win.mjs          pure, browser-safe helpers (shared with the page)
+lib/supabase.mjs     rpc(name, args)
+supabase/migrations/20261017000000_wins.sql
+supabase/tests/wins_test.sql
+test/*.test.mjs      node --test
 ```
 
-Env vars (Vercel): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DISCORD_WEBHOOK_URL` (optional).
-No Supabase key ever reaches the browser.
+Env vars (Hub Vercel project): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (both from the **Hub** Supabase project), `DISCORD_WEBHOOK_URL` (optional).
 
 ## Submit flow (`POST /api/submit-win`)
 
-1. **Validate** with `lib/win.mjs`: required fields, email format, one of client phone/email, lead type in list, AP range, lengths capped, honeypot empty. Fail → 400 with field errors.
-2. **Rate limit (stateless):** reject if the same submitter email has ≥ 5 wins in the last 10 minutes → 429.
-3. **Match agent:** `profiles` where `lower(email) = lower(input)`. Not found → `agent_id = null`, `status = 'pending'`.
-4. **Match lead** (only if agent matched): among that agent's `agent_leads`, find a row whose normalized phone (last 10 digits) equals the client phone, or whose `lower(email)` equals the client email. Most recent `delivered_at` wins.
-   - Found → set `agent_leads.disposition = 'sold'`, `disposition_updated_at = now()`.
-   - Retire from resale: `lead_inventory.active = false` for the inventory row linked via `lead_sales.agent_lead_id`; if no `lead_sales` link, match `lead_inventory` by normalized phone/email. The allocator (`allocate_and_stage`) only selects `where li.active`, so this stops resale.
-5. **Insert** into `wins` (below). `status = 'public'` when the agent matched; `'pending'` otherwise.
-6. **Discord** (only when `status = 'public'` and `DISCORD_WEBHOOK_URL` set): post
-   `🔔 Mike R. (TX) just closed a Final Expense deal — $1,200 AP!`
-   (the `(TX)` part is omitted when no lead matched, since state is unknown)
-   with `allowed_mentions: { parse: [] }` so user text can't ping anyone. Discord failure is logged and ignored — the win is already saved.
-7. Respond `200 { status, protected: <lead retired?> }`.
+1. Validate (`lib/win.mjs`): required fields, email formats, client phone/email, lead type in list, AP range, length caps, honeypot. Fail → 400 with field errors.
+2. `submit_win(p)` RPC: rate limit (≥ 5 wins per submitter email in 10 min → `{error:"rate_limited"}` → 429), else insert with `status='public'`.
+3. Discord (if `DISCORD_WEBHOOK_URL`): `🔔 Mike R. just closed a Final Expense deal — $1,200 AP!` with `allowed_mentions: { parse: [] }`, 3s timeout. Failure is logged and ignored.
+4. Respond `200 { status: "public" }`.
 
-Steps 4–5 run in one Postgres function `submit_win(...)` (`security definer`, callable only by service role) so the lead update, inventory retirement, and insert commit atomically.
+## Data model (Hub Supabase project)
 
-## Data model (new, in existing Supabase project)
+`wins`: `id, created_at, status ('public'|'hidden'), resale_retired (bool, default false), submitter_email, submitter_name, submitter_phone, client_name, client_phone, client_email, lead_type, carrier, annual_premium_cents (100–10,000,000), premium_mode ('monthly'|'annual'), testimonial, show_name`.
+RLS enabled, no policies (service role only). Functions `submit_win(jsonb)` and `wins_board()` are `security definer`, executable by `service_role` only.
 
-```sql
-create table public.wins (
-  id               uuid primary key default gen_random_uuid(),
-  created_at       timestamptz not null default now(),
-  status           text not null default 'pending'
-                   check (status in ('pending','public','rejected')),
-  agent_id         uuid references public.profiles(id),
-  agent_lead_id    uuid references public.agent_leads(id),
-  inventory_id     uuid references public.lead_inventory(id),
-  submitter_email  text not null,
-  submitter_name   text not null,
-  submitter_phone  text,
-  client_name      text not null,
-  client_phone     text,
-  client_email     text,
-  lead_type        text not null,          -- as selected by agent
-  matched_lead_type text,                  -- from agent_leads when matched (trusted)
-  state            text,                   -- from matched lead, if any
-  carrier          text,
-  annual_premium_cents integer not null check (annual_premium_cents between 100 and 10000000),
-  premium_mode     text not null check (premium_mode in ('monthly','annual')),
-  testimonial      text,
-  show_name        boolean not null default true
-);
-alter table public.wins enable row level security;  -- no policies: service role only
-create index on public.wins (status, created_at desc);
-create index on public.wins (lower(submitter_email), created_at desc);
-```
-
-Admin approves a pending win by setting `status = 'public'` in the Supabase table editor (admin UI is out of scope).
+**Owner workflow (Supabase table editor → `wins`):**
+- Resale to-do: filter `resale_retired = false` → retire the client in the CRM → tick `resale_retired`.
+- Fake win: set `status = 'hidden'` (disappears from leaderboard/feed within ~30s).
 
 ## Read flow (`GET /api/wins`)
 
-Returns only public-safe fields from `status = 'public'` wins:
-
-- **leaderboard:** current calendar month (America/New_York), grouped by `coalesce(agent_id::text, lower(submitter_email))` (so admin-approved unmatched wins still group per person), `sum(AP)` and count, top 10. Agents with `show_name = false` appear as "An agent".
-- **feed:** latest 20 wins: display name, state, lead type, AP, relative time.
-
-Never returns client name/phone/email, submitter email/phone, or testimonial.
-Response header `Cache-Control: s-maxage=30, stale-while-revalidate=60`. The page refreshes the feed after a successful submit and every 60s.
-
-**Display name:** first name + last initial from `submitter_name` ("Mike Ross" → "Mike R."); `show_name = false` → "An agent".
-
-## Discord setup (owner, one-time)
-
-1. Create channel `#wins`.
-2. Channel → Edit → Permissions → `@everyone`: **deny Send Messages**, allow View Channel + Add Reactions.
-3. Channel → Integrations → Webhooks → New Webhook → copy URL → set `DISCORD_WEBHOOK_URL` in Vercel.
-
-Webhooks post regardless of the Send Messages deny.
+- **leaderboard:** current calendar month (America/New_York), `status='public'`, grouped by `lower(submitter_email)`, `sum(AP)` + count, top 10.
+- **feed:** latest 20 public wins: display name, lead type, AP, relative time.
+- Only whitelisted fields leave the API (`toPublicBoard`); never client data, submitter email/phone, or testimonial.
+- `Cache-Control: s-maxage=30, stale-while-revalidate=60`. Page refreshes after submit and every 60s.
 
 ## Error handling
 
 | Case | Behavior |
 |---|---|
-| Validation error | 400, inline field messages, form keeps values |
-| Rate limited | 429, "Too many submissions — try again in a few minutes" |
-| Unknown email | Saved as `pending`, success message says it's under review |
-| Client not found in agent's leads | Win still saved/public; `protected: false`; message omits resale line |
+| Validation error | 400, inline field messages |
+| Rate limited | 429, "Too many submissions — try again in a few minutes." |
 | Discord down / unset | Ignored; win saved |
-| Supabase error | 500, "Couldn't save — please try again"; nothing partially written (atomic function) |
+| DB error | 500 "Couldn't save — please try again." (single-statement insert; nothing partial) |
+| Board load error | 502; page shows "Couldn't load the leaderboard." |
 
 ## Testing
 
-- `test/win.test.mjs` (`node --test`): `validate()` happy path + each rejection, `normalizePhone()` (10/11-digit, formatted input), `toAnnual()` monthly×12, `displayName()` edge cases (single name, consent off).
-- Manual end-to-end on a Vercel preview: submit with a throwaway `example.com` email (→ pending, no Discord), then with a real test profile + a known staged lead (→ public, lead `sold`, inventory inactive, Discord post). Delete test rows afterward.
+- `node --test test/win.test.mjs test/api.test.mjs` — validation, phone normalization, AP math, display names, bell text, public-field whitelist, handler status codes, Discord behavior.
+- `supabase/tests/wins_test.sql` — insert/normalize, board contents, hidden wins, private-field leak check, rate limit; rolls itself back.
+- Deployed E2E: submit a throwaway `example.com` win, confirm it on the board and in the table, delete it.
 
 ## Deployment
 
+- New Supabase project "Aged Life Leads Hub" (needs a free slot: the owner's account is at the free-tier 2-project limit — options: a separate Supabase account, or upgrading the org).
 - New Vercel project linked to `Deicide12/AgedLifeLeads-Hub`; suggested domain `hub.agedlifeleads.com`.
-- Hobby author gate: commits authored as `Deicide12 <Deicide12@users.noreply.github.com>`.
-- Migration (`wins` table + `submit_win` function) applied via Supabase migration.
+- Commits authored as `Deicide12 <Deicide12@users.noreply.github.com>`.
 
 ## Out of scope (YAGNI)
 
-- Agent login / personal win history
-- Admin dashboard (use Supabase table editor)
-- Photo uploads
-- Showing testimonials on agedlifeleads.com (data is collected; display is a later task)
-- Review-engine trigger on win (possible follow-up — a win is the "deal closed" signal that spec lacked)
-- Name typeahead (competitor's) — email match replaces it
+- Any read/write to the CRM or existing sites (sync is a separate future task)
+- Agent login, admin dashboard, photo uploads
+- Showing testimonials on agedlifeleads.com
+- Review-engine trigger on win

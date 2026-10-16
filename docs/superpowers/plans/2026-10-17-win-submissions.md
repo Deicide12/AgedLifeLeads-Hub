@@ -1,5 +1,7 @@
 # Win Submissions ("Ring the Bell") Implementation Plan
 
+> **Revised 2026-10-17:** the Hub now runs on its own Supabase + Vercel projects with no CRM access. Matching/retirement steps below are superseded; see the spec revision note and the current `supabase/migrations/20261017000000_wins.sql`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A public, no-login page where agents log closed deals; each win retires the client from resale, ranks the agent on a monthly AP leaderboard, and rings a read-only Discord channel.

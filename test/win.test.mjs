@@ -88,11 +88,11 @@ test("displayName", () => {
 
 test("bellMessage", () => {
   assert.equal(
-    bellMessage({ name: "Mike Ross", showName: true, state: "TX", leadType: "Final Expense", apCents: 120000 }),
-    "🔔 Mike R. (TX) just closed a Final Expense deal — $1,200 AP!"
+    bellMessage({ name: "Mike Ross", showName: true, leadType: "Final Expense", apCents: 120000 }),
+    "🔔 Mike R. just closed a Final Expense deal — $1,200 AP!"
   );
   assert.equal(
-    bellMessage({ name: "Mike Ross", showName: false, state: null, leadType: "IUL", apCents: 99950 }),
+    bellMessage({ name: "Mike Ross", showName: false, leadType: "IUL", apCents: 99950 }),
     "🔔 An agent just closed an IUL deal — $1,000 AP!"
   );
 });
@@ -100,11 +100,11 @@ test("bellMessage", () => {
 test("toPublicBoard keeps only safe fields", () => {
   const out = toPublicBoard({
     leaderboard: [{ name: "Mike Ross", show_name: true, ap_cents: "240000", wins: 2, submitter_email: "x@y.com" }],
-    feed: [{ name: "Jane Roe", show_name: false, state: "", lead_type: "IUL", ap_cents: 5000, created_at: "2026-10-17T00:00:00Z", client_phone: "5551234567" }],
+    feed: [{ name: "Jane Roe", show_name: false, lead_type: "IUL", ap_cents: 5000, created_at: "2026-10-17T00:00:00Z", client_phone: "5551234567" }],
   });
   assert.deepEqual(out, {
     leaderboard: [{ name: "Mike R.", ap_cents: 240000, wins: 2 }],
-    feed: [{ name: "An agent", state: null, lead_type: "IUL", ap_cents: 5000, created_at: "2026-10-17T00:00:00Z" }],
+    feed: [{ name: "An agent", lead_type: "IUL", ap_cents: 5000, created_at: "2026-10-17T00:00:00Z" }],
   });
   assert.deepEqual(toPublicBoard(null), { leaderboard: [], feed: [] });
 });

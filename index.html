@@ -59,7 +59,7 @@ ol.board li:first-child,ul.feed li:first-child{border-top:0}
 <body>
 <header>
   <h1>Submit a Sale 🔔</h1>
-  <p>Log your sale. It hits the leaderboard, rings the bell, and we pull your client from resale.</p>
+  <p>Log your sale. It hits the leaderboard, rings the bell, and we'll pull your client from resale.</p>
 </header>
 <main>
   <form class="card" id="win-form" novalidate>
@@ -218,12 +218,7 @@ form.addEventListener("submit", async (e) => {
     }
     if (!r.ok) return setMsg(out.error || "Couldn't save — please try again.", false);
     confetti();
-    setMsg(
-      out.status === "pending" ? "Logged! We'll review it shortly."
-        : out.protected ? "🔔 Bell rung! Your client is now protected from resale."
-        : "🔔 Bell rung! Your win is on the board.",
-      true
-    );
+    setMsg("🔔 Bell rung! Your win is on the board — we'll pull your client from resale.", true);
     form.reset();
     form.querySelector('[data-mode="annual"]').click();
     loadBoard();
@@ -275,7 +270,7 @@ async function loadBoard() {
       : [row(el("span", "empty", "No wins yet this month — be the first!"))]));
     feed.replaceChildren(...(data.feed.length
       ? data.feed.map((x) => row(
-          who(x.state ? `${x.name} · ${x.state}` : x.name, `${x.lead_type} · ${ago(x.created_at)}`),
+          who(x.name, `${x.lead_type} · ${ago(x.created_at)}`),
           el("span", "ap", formatAP(x.ap_cents))))
       : [row(el("span", "empty", "No wins yet."))]));
   } catch {
