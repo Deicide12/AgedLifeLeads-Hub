@@ -53,6 +53,7 @@ test("submit-win: 503 when not configured", async () => {
   const res = mockRes();
   await submitWin({ method: "POST", body }, res);
   assert.equal(res.statusCode, 503);
+  assert.deepEqual(res.body.missing, ["SUPABASE_SERVICE_ROLE_KEY"]);
 });
 
 test("submit-win: 400 with field errors and no DB call", async () => {

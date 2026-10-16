@@ -1,10 +1,11 @@
 import { validate, bellMessage } from "../lib/win.mjs";
-import { rpc } from "../lib/supabase.mjs";
+import { rpc, missingEnv } from "../lib/supabase.mjs";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DISCORD_WEBHOOK_URL } = process.env;
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return res.status(503).json({ error: "Not configured." });
+  const missing = missingEnv();
+  if (missing.length) return res.status(503).json({ error: "Not configured.", missing });
+  const { DISCORD_WEBHOOK_URL } = process.env;
 
   let body = req.body;
   if (typeof body === "string") {
